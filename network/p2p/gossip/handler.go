@@ -44,7 +44,8 @@ type Handler[T Gossipable] struct {
 	targetResponseSize int
 }
 
-func (h Handler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.Time, requestBytes []byte) ([]byte, error) {
+func (h Handler[T]) AppRequest(_ context.Context, nodeID ids.NodeID, _ time.Time, requestBytes []byte) ([]byte, error) {
+	h.log.Debug("Handler::AppRequest", zap.Stringer("nodeID", nodeID))
 	filter, salt, err := ParseAppRequest(requestBytes)
 	if err != nil {
 		return nil, err
@@ -63,6 +64,7 @@ func (h Handler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.Time, req
 		var bytes []byte
 		bytes, err = h.marshaller.MarshalGossip(gossipable)
 		if err != nil {
+			h.log.Debug("failed to marshal gossip", zap.Error(err))
 			return false
 		}
 
@@ -91,10 +93,17 @@ func (h Handler[T]) AppRequest(_ context.Context, _ ids.NodeID, _ time.Time, req
 	sentCountMetric.Add(float64(len(gossipBytes)))
 	sentBytesMetric.Add(float64(responseSize))
 
+	h.log.Debug("Handler::AppRequest",
+		zap.Stringer("nodeID", nodeID),
+		zap.Int("len(gossipBytes)", len(gossipBytes)),
+		zap.Int("responseSize", responseSize),
+	)
+
 	return MarshalAppResponse(gossipBytes)
 }
 
-func (h Handler[_]) AppGossip(_ context.Context, nodeID ids.NodeID, gossipBytes []byte) {
+func (h Handler[T]) AppGossip(_ context.Context, nodeID ids.NodeID, gossipBytes []byte) {
+	h.log.Debug("Handler::AppGossip", zap.Stringer("nodeID", nodeID))
 	gossip, err := ParseAppGossip(gossipBytes)
 	if err != nil {
 		h.log.Debug("failed to unmarshal gossip", zap.Error(err))
@@ -102,6 +111,7 @@ func (h Handler[_]) AppGossip(_ context.Context, nodeID ids.NodeID, gossipBytes 
 	}
 
 	receivedBytes := 0
+	gossipables := make([]T, 0, len(gossip))
 	for _, bytes := range gossip {
 		receivedBytes += len(bytes)
 		gossipable, err := h.marshaller.UnmarshalGossip(bytes)
@@ -113,11 +123,16 @@ func (h Handler[_]) AppGossip(_ context.Context, nodeID ids.NodeID, gossipBytes 
 			continue
 		}
 
-		if err := h.set.Add(gossipable); err != nil {
+		gossipables = append(gossipables, gossipable)
+	}
+
+	errs := h.set.Add(gossipables...)
+	for i, err := range errs {
+		if err != nil {
 			h.log.Debug(
 				"failed to add gossip to the known set",
 				zap.Stringer("nodeID", nodeID),
-				zap.Stringer("id", gossipable.GossipID()),
+				zap.Stringer("id", gossipables[i].GossipID()),
 				zap.Error(err),
 			)
 		}
@@ -137,4 +152,10 @@ func (h Handler[_]) AppGossip(_ context.Context, nodeID ids.NodeID, gossipBytes 
 
 	receivedCountMetric.Add(float64(len(gossip)))
 	receivedBytesMetric.Add(float64(receivedBytes))
+
+	h.log.Debug("Handler::AppGossip",
+		zap.Stringer("nodeID", nodeID),
+		zap.Int("len(gossip)", len(gossip)),
+		zap.Int("receivedBytes", receivedBytes),
+	)
 }

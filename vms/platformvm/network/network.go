@@ -88,6 +88,7 @@ func New(
 	}
 
 	txPushGossiper, err := gossip.NewPushGossiper[*txs.Tx](
+		log,
 		marshaller,
 		gossipMempool,
 		validators,
@@ -213,8 +214,8 @@ func (n *Network) IssueTxFromRPC(tx *txs.Tx) error {
 		return errMempoolDisabledWithPartialSync
 	}
 
-	if err := n.mempool.Add(tx); err != nil {
-		return err
+	if errs := n.mempool.Add(tx); errs[0] != nil {
+		return errs[0]
 	}
 	n.txPushGossiper.Add(tx)
 	return nil

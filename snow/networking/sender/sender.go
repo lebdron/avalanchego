@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/message"
@@ -899,6 +900,12 @@ func (s *sender) SendPushQuery(
 	container []byte,
 	requestedHeight uint64,
 ) {
+	s.ctx.Log.Debug("sender::SendPushQuery",
+		zap.Stringers("nodeIDs", maps.Keys(nodeIDs)),
+		zap.Uint32("requestID", requestID),
+		zap.Uint64("requestedHeight", requestedHeight),
+	)
+
 	ctx = context.WithoutCancel(ctx)
 
 	// Tell the router to expect a response message or a message notifying
@@ -1035,6 +1042,12 @@ func (s *sender) SendPullQuery(
 	containerID ids.ID,
 	requestedHeight uint64,
 ) {
+	s.ctx.Log.Debug("sender::SendPullQuery",
+		zap.Stringers("nodeIDs", maps.Keys(nodeIDs)),
+		zap.Uint32("requestID", requestID),
+		zap.Uint64("requestedHeight", requestedHeight),
+	)
+
 	ctx = context.WithoutCancel(ctx)
 
 	// Tell the router to expect a response message or a message notifying
@@ -1161,6 +1174,14 @@ func (s *sender) SendChits(
 	preferredIDAtHeight ids.ID,
 	acceptedID ids.ID,
 ) {
+	s.ctx.Log.Debug("sender::SendChits",
+		zap.Stringer("nodeID", nodeID),
+		zap.Uint32("requestID", requestID),
+		zap.Stringer("preferredID", preferredID),
+		zap.Stringer("preferredIDAtHeight", preferredIDAtHeight),
+		zap.Stringer("acceptedID", acceptedID),
+	)
+
 	ctx = context.WithoutCancel(ctx)
 
 	// If [nodeID] is myself, send this message directly
@@ -1565,6 +1586,7 @@ func (s *sender) SendAppGossip(
 		s.ctx.SubnetID,
 		s.subnet,
 	)
+	s.ctx.Log.Debug("sender::SendAppGossip", zap.Stringers("sentTo", sentTo.List()))
 	if sentTo.Len() == 0 {
 		if s.ctx.Log.Enabled(logging.Verbo) {
 			s.ctx.Log.Verbo("failed to send message",

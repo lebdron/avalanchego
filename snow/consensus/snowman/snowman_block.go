@@ -4,6 +4,9 @@
 package snowman
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowball"
@@ -30,6 +33,27 @@ type snowmanBlock struct {
 	// as their parent. If this node has not had a child issued under it, this value
 	// will be nil
 	children map[ids.ID]Block
+}
+
+func (n snowmanBlock) String() string {
+	sb := strings.Builder{}
+	fmt.Fprintf(&sb, "params: %v", n.params)
+	if n.blk != nil {
+		fmt.Fprintf(&sb, " blk: ID: %v Status: %v Parent: %v Height: %v Timestamp: %v", n.blk.ID(), n.blk.Status(), n.blk.Parent(), n.blk.Height(), n.blk.Timestamp())
+	}
+	if n.sb != nil {
+		fmt.Fprintf(&sb, " sb: %v", n.sb)
+	}
+	if n.children != nil {
+		fmt.Fprint(&sb, " children: {")
+		kvs := make([]string, 0, len(n.children))
+		for k, v := range n.children {
+			kvs = append(kvs, fmt.Sprintf("%v: %v", k, v))
+		}
+		fmt.Fprint(&sb, strings.Join(kvs, ", "))
+		fmt.Fprint(&sb, "}")
+	}
+	return sb.String()
 }
 
 func (n *snowmanBlock) AddChild(child Block) {

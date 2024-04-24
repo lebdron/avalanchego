@@ -86,6 +86,11 @@ func (c *Client) AppRequest(
 	c.router.lock.Lock()
 	defer c.router.lock.Unlock()
 
+	c.router.log.Debug("Client::AppRequest",
+		zap.Stringers("nodeIDs", nodeIDs.List()),
+		zap.Uint32("requestID", c.router.requestID),
+	)
+
 	appRequestBytes = PrefixMessage(c.handlerPrefix, appRequestBytes)
 	for nodeID := range nodeIDs {
 		requestID := c.router.requestID

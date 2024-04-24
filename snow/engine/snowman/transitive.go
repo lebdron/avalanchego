@@ -292,6 +292,12 @@ func (t *Transitive) GetFailed(ctx context.Context, nodeID ids.NodeID, requestID
 }
 
 func (t *Transitive) PullQuery(ctx context.Context, nodeID ids.NodeID, requestID uint32, blkID ids.ID, requestedHeight uint64) error {
+	t.Ctx.Log.Debug("Transitive::PullQuery",
+		zap.Stringer("nodeID", nodeID),
+		zap.Uint32("requestID", requestID),
+		zap.Stringer("blkID", blkID),
+		zap.Uint64("requestedHeight", requestedHeight),
+	)
 	t.sendChits(ctx, nodeID, requestID, requestedHeight)
 
 	issuedMetric := t.metrics.issued.WithLabelValues(pushGossipSource)
@@ -306,6 +312,11 @@ func (t *Transitive) PullQuery(ctx context.Context, nodeID ids.NodeID, requestID
 }
 
 func (t *Transitive) PushQuery(ctx context.Context, nodeID ids.NodeID, requestID uint32, blkBytes []byte, requestedHeight uint64) error {
+	t.Ctx.Log.Debug("Transitive::PushQuery",
+		zap.Stringer("nodeID", nodeID),
+		zap.Uint32("requestID", requestID),
+		zap.Uint64("requestedHeight", requestedHeight),
+	)
 	t.sendChits(ctx, nodeID, requestID, requestedHeight)
 
 	blk, err := t.VM.ParseBlock(ctx, blkBytes)
@@ -349,7 +360,7 @@ func (t *Transitive) PushQuery(ctx context.Context, nodeID ids.NodeID, requestID
 func (t *Transitive) Chits(ctx context.Context, nodeID ids.NodeID, requestID uint32, preferredID ids.ID, preferredIDAtHeight ids.ID, acceptedID ids.ID) error {
 	t.acceptedFrontiers.SetLastAccepted(nodeID, acceptedID)
 
-	t.Ctx.Log.Verbo("called Chits for the block",
+	t.Ctx.Log.Debug("called Chits for the block",
 		zap.Stringer("nodeID", nodeID),
 		zap.Uint32("requestID", requestID),
 		zap.Stringer("preferredID", preferredID),
@@ -403,8 +414,10 @@ func (t *Transitive) Chits(ctx context.Context, nodeID ids.NodeID, requestID uin
 }
 
 func (t *Transitive) QueryFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
+	t.Ctx.Log.Debug("Transitive::QueryFailed", zap.Stringer("nodeID", nodeID), zap.Uint32("requestID", requestID))
 	lastAccepted, ok := t.acceptedFrontiers.LastAccepted(nodeID)
 	if ok {
+		t.Ctx.Log.Debug("Transitive::QueryFailed calling Chits", zap.Stringer("lastAccepted", lastAccepted))
 		return t.Chits(ctx, nodeID, requestID, lastAccepted, lastAccepted, lastAccepted)
 	}
 
@@ -588,6 +601,14 @@ func (t *Transitive) sendChits(ctx context.Context, nodeID ids.NodeID, requestID
 			)
 			acceptedAtHeight = lastAcceptedID
 		}
+		t.Ctx.Log.Debug("Transitive::sendChits syncing",
+			zap.Stringer("nodeID", nodeID),
+			zap.Uint32("requestID", requestID),
+			zap.Uint64("requestedHeight", requestedHeight),
+			zap.Stringer("lastAcceptedID", lastAcceptedID),
+			zap.Uint64("lastAcceptedHeight", lastAcceptedHeight),
+			zap.Stringer("acceptedAtHeight", acceptedAtHeight),
+		)
 		t.Sender.SendChits(ctx, nodeID, requestID, lastAcceptedID, acceptedAtHeight, lastAcceptedID)
 		return
 	}
@@ -633,6 +654,15 @@ func (t *Transitive) sendChits(ctx context.Context, nodeID ids.NodeID, requestID
 			preferenceAtHeight = preference
 		}
 	}
+	t.Ctx.Log.Debug("Transitive::sendChits",
+		zap.Stringer("nodeID", nodeID),
+		zap.Uint32("requestID", requestID),
+		zap.Uint64("requestedHeight", requestedHeight),
+		zap.Stringer("lastAcceptedID", lastAcceptedID),
+		zap.Uint64("lastAcceptedHeight", lastAcceptedHeight),
+		zap.Stringer("preference", preference),
+		zap.Stringer("preferenceAtHeight", preferenceAtHeight),
+	)
 	t.Sender.SendChits(ctx, nodeID, requestID, preference, preferenceAtHeight, lastAcceptedID)
 }
 
@@ -697,8 +727,20 @@ func (t *Transitive) repoll(ctx context.Context) {
 	// propagate the most likely branch as quickly as possible
 	prefID := t.Consensus.Preference()
 
+	_, lastAcceptedHeight := t.Consensus.LastAccepted()
+	nextHeightToAccept, err := math.Add64(lastAcceptedHeight, 1)
+	if err != nil {
+		t.Ctx.Log.Error("skipping repoll",
+			zap.String("reason", "block height overflow"),
+			zap.Stringer("prefID", prefID),
+			zap.Uint64("lastAcceptedHeight", lastAcceptedHeight),
+			zap.Error(err),
+		)
+		return
+	}
+
 	for i := t.polls.Len(); i < t.Params.ConcurrentRepolls; i++ {
-		t.sendQuery(ctx, prefID, nil, false)
+		t.sendQuery(ctx, prefID, nil, false, nextHeightToAccept)
 	}
 }
 
@@ -874,7 +916,7 @@ func (t *Transitive) sendRequest(
 	t.blkReqs.Put(req, blkID)
 	t.blkReqSourceMetric[req] = issuedMetric
 
-	t.Ctx.Log.Verbo("sending Get request",
+	t.Ctx.Log.Debug("sending Get request",
 		zap.Stringer("nodeID", nodeID),
 		zap.Uint32("requestID", t.requestID),
 		zap.Stringer("blkID", blkID),
@@ -890,7 +932,10 @@ func (t *Transitive) sendQuery(
 	blkID ids.ID,
 	blkBytes []byte,
 	push bool,
+	requestedHeight uint64,
 ) {
+	t.Ctx.Log.Debug("Transitive::sendQuery", zap.Stringer("blkID", blkID), zap.Bool("push", push))
+
 	t.Ctx.Log.Verbo("sampling from validators",
 		zap.Stringer("validators", t.Validators),
 	)
@@ -901,18 +946,6 @@ func (t *Transitive) sendQuery(
 			zap.String("reason", "insufficient number of validators"),
 			zap.Stringer("blkID", blkID),
 			zap.Int("size", t.Params.K),
-		)
-		return
-	}
-
-	_, lastAcceptedHeight := t.Consensus.LastAccepted()
-	nextHeightToAccept, err := math.Add64(lastAcceptedHeight, 1)
-	if err != nil {
-		t.Ctx.Log.Error("dropped query for block",
-			zap.String("reason", "block height overflow"),
-			zap.Stringer("blkID", blkID),
-			zap.Uint64("lastAcceptedHeight", lastAcceptedHeight),
-			zap.Error(err),
 		)
 		return
 	}
@@ -930,9 +963,9 @@ func (t *Transitive) sendQuery(
 
 	vdrSet := set.Of(vdrIDs...)
 	if push {
-		t.Sender.SendPushQuery(ctx, vdrSet, t.requestID, blkBytes, nextHeightToAccept)
+		t.Sender.SendPushQuery(ctx, vdrSet, t.requestID, blkBytes, requestedHeight)
 	} else {
-		t.Sender.SendPullQuery(ctx, vdrSet, t.requestID, blkID, nextHeightToAccept)
+		t.Sender.SendPullQuery(ctx, vdrSet, t.requestID, blkID, requestedHeight)
 	}
 }
 
@@ -1011,14 +1044,14 @@ func (t *Transitive) deliver(
 	// If the block is now preferred, query the network for its preferences
 	// with this new block.
 	if t.Consensus.IsPreferred(blk) {
-		t.sendQuery(ctx, blkID, blk.Bytes(), push)
+		t.sendQuery(ctx, blkID, blk.Bytes(), push, blk.Height())
 	}
 
 	t.blocked.Fulfill(ctx, blkID)
 	for _, blk := range added {
 		blkID := blk.ID()
 		if t.Consensus.IsPreferred(blk) {
-			t.sendQuery(ctx, blkID, blk.Bytes(), push)
+			t.sendQuery(ctx, blkID, blk.Bytes(), push, blk.Height())
 		}
 
 		t.removeFromPending(blk)
@@ -1096,7 +1129,7 @@ func (t *Transitive) addUnverifiedBlockToConsensus(
 	t.nonVerifieds.Remove(blkID)
 	t.nonVerifiedCache.Evict(blkID)
 	t.metrics.issuerStake.Observe(float64(t.Validators.GetWeight(t.Ctx.SubnetID, nodeID)))
-	t.Ctx.Log.Verbo("adding block to consensus",
+	t.Ctx.Log.Debug("adding block to consensus",
 		zap.Stringer("nodeID", nodeID),
 		zap.Stringer("blkID", blkID),
 		zap.Uint64("height", blkHeight),

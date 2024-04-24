@@ -112,6 +112,8 @@ func (r *router) addHandler(handlerID uint64, handler Handler) error {
 		metrics: r.metrics,
 	}
 
+	r.log.Debug("router::addHandler", zap.Uint64("handlerID", handlerID))
+
 	return nil
 }
 
@@ -122,7 +124,7 @@ func (r *router) addHandler(handlerID uint64, handler Handler) error {
 // considered fatal
 func (r *router) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, deadline time.Time, request []byte) error {
 	start := time.Now()
-	parsedMsg, handler, handlerID, ok := r.parse(request)
+	parsedMsg, handler, handlerID, ok, err := r.parse(request)
 	if !ok {
 		r.log.Debug("failed to process message",
 			zap.Stringer("messageOp", message.AppRequestOp),
@@ -130,6 +132,7 @@ func (r *router) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID ui
 			zap.Uint32("requestID", requestID),
 			zap.Time("deadline", deadline),
 			zap.Binary("message", request),
+			zap.Error(err),
 		)
 		return nil
 	}
@@ -236,12 +239,13 @@ func (r *router) AppResponse(ctx context.Context, nodeID ids.NodeID, requestID u
 // considered fatal
 func (r *router) AppGossip(ctx context.Context, nodeID ids.NodeID, gossip []byte) error {
 	start := time.Now()
-	parsedMsg, handler, handlerID, ok := r.parse(gossip)
+	parsedMsg, handler, handlerID, ok, err := r.parse(gossip)
 	if !ok {
 		r.log.Debug("failed to process message",
 			zap.Stringer("messageOp", message.AppGossipOp),
 			zap.Stringer("nodeID", nodeID),
 			zap.Binary("message", gossip),
+			zap.Error(err),
 		)
 		return nil
 	}
@@ -282,7 +286,7 @@ func (r *router) CrossChainAppRequest(
 	msg []byte,
 ) error {
 	start := time.Now()
-	parsedMsg, handler, handlerID, ok := r.parse(msg)
+	parsedMsg, handler, handlerID, ok, err := r.parse(msg)
 	if !ok {
 		r.log.Debug("failed to process message",
 			zap.Stringer("messageOp", message.CrossChainAppRequestOp),
@@ -290,6 +294,7 @@ func (r *router) CrossChainAppRequest(
 			zap.Uint32("requestID", requestID),
 			zap.Time("deadline", deadline),
 			zap.Binary("message", msg),
+			zap.Error(err),
 		)
 		return nil
 	}
@@ -398,10 +403,10 @@ func (r *router) CrossChainAppResponse(ctx context.Context, chainID ids.ID, requ
 // - A boolean indicating that parsing succeeded.
 //
 // Invariant: Assumes [r.lock] isn't held.
-func (r *router) parse(prefixedMsg []byte) ([]byte, *meteredHandler, string, bool) {
-	handlerID, msg, ok := ParseMessage(prefixedMsg)
+func (r *router) parse(prefixedMsg []byte) ([]byte, *meteredHandler, string, bool, error) {
+	handlerID, msg, ok, err := ParseMessage(prefixedMsg)
 	if !ok {
-		return nil, nil, "", false
+		return nil, nil, "", false, err
 	}
 
 	handlerStr := strconv.FormatUint(handlerID, 10)
@@ -410,7 +415,10 @@ func (r *router) parse(prefixedMsg []byte) ([]byte, *meteredHandler, string, boo
 	defer r.lock.RUnlock()
 
 	handler, ok := r.handlers[handlerID]
-	return msg, handler, handlerStr, ok
+	if !ok {
+		err = fmt.Errorf("handler %v not registered", handlerID)
+	}
+	return msg, handler, handlerStr, ok, err
 }
 
 // Invariant: Assumes [r.lock] isn't held.
@@ -439,10 +447,16 @@ func (r *router) clearCrossChainAppRequest(requestID uint32) (pendingCrossChainA
 // - The protocol ID.
 // - The unprefixed protocol message.
 // - A boolean indicating that parsing succeeded.
-func ParseMessage(msg []byte) (uint64, []byte, bool) {
+func ParseMessage(msg []byte) (uint64, []byte, bool, error) {
 	handlerID, bytesRead := binary.Uvarint(msg)
 	if bytesRead <= 0 {
-		return 0, nil, false
+		var err error
+		if bytesRead == 0 {
+			err = fmt.Errorf("buf too small")
+		} else {
+			err = fmt.Errorf("overflow")
+		}
+		return 0, nil, false, err
 	}
-	return handlerID, msg[bytesRead:], true
+	return handlerID, msg[bytesRead:], true, nil
 }

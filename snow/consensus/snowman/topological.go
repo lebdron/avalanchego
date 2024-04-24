@@ -97,6 +97,10 @@ type votes struct {
 	votes bag.Bag[ids.ID]
 }
 
+func (v votes) String() string {
+	return fmt.Sprintf("parentID: %v votes: %v", v.parentID, &v.votes)
+}
+
 func (ts *Topological) Initialize(
 	ctx *snow.ConsensusContext,
 	params snowball.Parameters,
@@ -269,6 +273,8 @@ func (ts *Topological) PreferenceAtHeight(height uint64) (ids.ID, bool) {
 func (ts *Topological) RecordPoll(ctx context.Context, voteBag bag.Bag[ids.ID]) error {
 	// Register a new poll call
 	ts.pollNumber++
+
+	ts.ctx.Log.Debug("Topological:RecordPoll", zap.Stringer("voteBag", &voteBag), zap.Uint64("pollNumber", ts.pollNumber))
 
 	var voteStack []votes
 	if voteBag.Len() >= ts.params.AlphaPreference {
@@ -476,6 +482,7 @@ func (ts *Topological) pushVotes() []votes {
 // next preferred block after the last preferred block that received an Alpha
 // threshold.
 func (ts *Topological) vote(ctx context.Context, voteStack []votes) (ids.ID, error) {
+	ts.ctx.Log.Debug("Topological::vote", zap.Stringers("voteStack", voteStack))
 	// If the voteStack is empty, then the full tree should falter. This won't
 	// change the preferred branch.
 	if len(voteStack) == 0 {
@@ -530,6 +537,11 @@ func (ts *Topological) vote(ctx context.Context, voteStack []votes) (ids.ID, err
 
 		// Only accept when you are finalized and a child of the last accepted
 		// block.
+		ts.ctx.Log.Debug("Topological::vote",
+			zap.Stringer("vote", vote),
+			zap.Stringer("parentBlock", parentBlock),
+			zap.Stringer("lastAcceptedID", ts.lastAcceptedID),
+		)
 		if parentBlock.sb.Finalized() && ts.lastAcceptedID == vote.parentID {
 			if err := ts.acceptPreferredChild(ctx, parentBlock); err != nil {
 				return ids.ID{}, err
@@ -606,6 +618,7 @@ func (ts *Topological) vote(ctx context.Context, voteStack []votes) (ids.ID, err
 // We accept a block once its parent's snowball instance has finalized
 // with it as the preference.
 func (ts *Topological) acceptPreferredChild(ctx context.Context, n *snowmanBlock) error {
+	ts.ctx.Log.Debug("Topological::acceptPreferredChild", zap.Uint64("height", n.children[n.sb.Preference()].Height()))
 	// We are finalizing the block's child, so we need to get the preference
 	pref := n.sb.Preference()
 

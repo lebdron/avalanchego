@@ -90,7 +90,7 @@ type gossipMempool struct {
 	bloom *gossip.BloomFilter
 }
 
-func (g *gossipMempool) Add(tx *txs.Tx) error {
+func (g *gossipMempool) add(tx *txs.Tx) error {
 	txID := tx.ID()
 	if _, ok := g.Mempool.Get(txID); ok {
 		return fmt.Errorf("tx %s dropped: %w", txID, mempool.ErrDuplicateTx)
@@ -133,6 +133,14 @@ func (g *gossipMempool) Add(tx *txs.Tx) error {
 
 	g.Mempool.RequestBuildBlock(false)
 	return nil
+}
+
+func (g *gossipMempool) Add(txs ...*txs.Tx) []error {
+	errs := make([]error, len(txs))
+	for i, tx := range txs {
+		errs[i] = g.add(tx)
+	}
+	return errs
 }
 
 func (g *gossipMempool) Has(txID ids.ID) bool {

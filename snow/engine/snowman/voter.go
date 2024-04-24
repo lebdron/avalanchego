@@ -65,6 +65,8 @@ func (v *voter) Update(ctx context.Context) {
 		results = v.t.polls.Drop(v.requestID, v.vdr)
 	}
 
+	v.t.Ctx.Log.Debug("voter::Update", zap.Stringer("polls", v.t.polls))
+
 	if len(results) == 0 {
 		return
 	}
@@ -88,12 +90,13 @@ func (v *voter) Update(ctx context.Context) {
 		return
 	}
 
-	if v.t.Consensus.NumProcessing() == 0 {
+	numProcessing := v.t.Consensus.NumProcessing()
+	if numProcessing == 0 {
 		v.t.Ctx.Log.Debug("Snowman engine can quiesce")
 		return
 	}
 
-	v.t.Ctx.Log.Debug("Snowman engine can't quiesce")
+	v.t.Ctx.Log.Debug("Snowman engine can't quiesce", zap.Int("NumProcessing", numProcessing))
 	v.t.repoll(ctx)
 }
 
@@ -133,7 +136,7 @@ func (v *voter) getProcessingAncestor(ctx context.Context, initialVote ids.ID) (
 		}
 
 		if v.t.Consensus.Processing(bubbledVote) {
-			v.t.Ctx.Log.Verbo("applying vote",
+			v.t.Ctx.Log.Debug("applying vote",
 				zap.Stringer("initialVoteID", initialVote),
 				zap.Stringer("bubbledVoteID", bubbledVote),
 				zap.Uint64("height", blk.Height()),

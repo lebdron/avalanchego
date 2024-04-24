@@ -99,7 +99,7 @@ type gossipMempool struct {
 // us and when handling transactions that were pulled from a peer. If this
 // returns a nil error while handling push gossip, the p2p SDK will queue the
 // transaction to push gossip as well.
-func (g *gossipMempool) Add(tx *txs.Tx) error {
+func (g *gossipMempool) add(tx *txs.Tx) error {
 	txID := tx.ID()
 	if _, ok := g.Mempool.Get(txID); ok {
 		return fmt.Errorf("attempted to issue %w: %s ", mempool.ErrDuplicateTx, txID)
@@ -120,6 +120,14 @@ func (g *gossipMempool) Add(tx *txs.Tx) error {
 	}
 
 	return g.AddWithoutVerification(tx)
+}
+
+func (g *gossipMempool) Add(txs ...*txs.Tx) []error {
+	errs := make([]error, len(txs))
+	for i, tx := range txs {
+		errs[i] = g.add(tx)
+	}
+	return errs
 }
 
 func (g *gossipMempool) Has(txID ids.ID) bool {
