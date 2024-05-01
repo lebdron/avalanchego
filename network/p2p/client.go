@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"go.uber.org/zap"
 )
 
 var (
@@ -74,6 +75,11 @@ func (c *Client) AppRequest(
 ) error {
 	c.router.lock.Lock()
 	defer c.router.lock.Unlock()
+
+	c.router.log.Debug("Client::AppRequest",
+		zap.Stringers("nodeIDs", nodeIDs.List()),
+		zap.Uint32("requestID", c.router.requestID),
+	)
 
 	appRequestBytes = PrefixMessage(c.handlerPrefix, appRequestBytes)
 	for nodeID := range nodeIDs {

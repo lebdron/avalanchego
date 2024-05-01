@@ -122,6 +122,7 @@ func New(
 	// Gossip requests are only served if a node is a validator
 	txPullGossiper = gossip.ValidatorGossiper{
 		Gossiper:   txPullGossiper,
+		Log:        log,
 		NodeID:     nodeID,
 		Validators: validators,
 	}

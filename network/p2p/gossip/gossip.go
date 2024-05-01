@@ -77,6 +77,7 @@ type Gossiper interface {
 type ValidatorGossiper struct {
 	Gossiper
 
+	Log        logging.Logger
 	NodeID     ids.NodeID
 	Validators p2p.ValidatorSet
 }
@@ -149,6 +150,7 @@ func NewMetrics(
 
 func (v ValidatorGossiper) Gossip(ctx context.Context) error {
 	if !v.Validators.Has(ctx, v.NodeID) {
+		v.Log.Debug("ValidatorGossiper::Gossip !v.Validators.Has", zap.Stringer("nodeID", v.NodeID))
 		return nil
 	}
 
@@ -163,6 +165,7 @@ func NewPullGossiper[T Gossipable](
 	metrics Metrics,
 	pollSize int,
 ) *PullGossiper[T] {
+	log.Debug("NewPullGossiper")
 	return &PullGossiper[T]{
 		log:        log,
 		marshaller: marshaller,
@@ -183,6 +186,7 @@ type PullGossiper[T Gossipable] struct {
 }
 
 func (p *PullGossiper[_]) Gossip(ctx context.Context) error {
+	p.log.Debug("PullGossiper::Gossip")
 	msgBytes, err := MarshalAppRequest(p.set.GetFilter())
 	if err != nil {
 		return err
@@ -190,6 +194,9 @@ func (p *PullGossiper[_]) Gossip(ctx context.Context) error {
 
 	for i := 0; i < p.pollSize; i++ {
 		err := p.client.AppRequestAny(ctx, msgBytes, p.handleResponse)
+		if err != nil {
+			p.log.Debug("PullGosiper::Gossip", zap.Error(err))
+		}
 		if err != nil && !errors.Is(err, p2p.ErrNoPeers) {
 			return err
 		}
@@ -264,6 +271,11 @@ func (p *PullGossiper[_]) handleResponse(
 
 	receivedCountMetric.Add(float64(len(gossip)))
 	receivedBytesMetric.Add(float64(receivedBytes))
+
+	p.log.Debug("PullGossiper::handleResponse",
+		zap.Int("len(gossip)", len(gossip)),
+		zap.Int("receivedBytes", receivedBytes),
+	)
 }
 
 // NewPushGossiper returns an instance of PushGossiper
@@ -560,6 +572,7 @@ func (p *PushGossiper[_]) updateMetrics(nowUnixNano float64) {
 
 // Every calls [Gossip] every [frequency] amount of time.
 func Every(ctx context.Context, log logging.Logger, gossiper Gossiper, frequency time.Duration) {
+	log.Debug("Every")
 	ticker := time.NewTicker(frequency)
 	defer ticker.Stop()
 

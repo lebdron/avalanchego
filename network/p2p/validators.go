@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -175,6 +176,15 @@ func (v *Validators) Has(ctx context.Context, nodeID ids.NodeID) bool {
 	defer v.lock.Unlock()
 
 	v.refresh(ctx)
+	v.peers.lock.RLock()
+	peers := v.peers.set.List()
+	v.peers.lock.RUnlock()
+
+	v.log.Debug("Validators::Has",
+		zap.Stringers("peers", peers),
+		zap.Stringers("validatorSet", maps.Keys(v.validatorSet)),
+		zap.Stringer("nodeID", nodeID),
+	)
 
 	return v.peers.has(nodeID) && v.validatorSet.Contains(nodeID)
 }

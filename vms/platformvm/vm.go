@@ -476,7 +476,10 @@ func (vm *VM) CreateHandlers(context.Context) (map[string]http.Handler, error) {
 	}, err
 }
 
-func (vm *VM) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
+func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, version *version.Application) error {
+	if err := vm.Network.Connected(ctx, nodeID, version); err != nil {
+		return err
+	}
 	return vm.uptimeManager.Connect(nodeID, constants.PrimaryNetworkID)
 }
 
@@ -484,7 +487,10 @@ func (vm *VM) ConnectedSubnet(_ context.Context, nodeID ids.NodeID, subnetID ids
 	return vm.uptimeManager.Connect(nodeID, subnetID)
 }
 
-func (vm *VM) Disconnected(_ context.Context, nodeID ids.NodeID) error {
+func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+	if err := vm.Network.Disconnected(ctx, nodeID); err != nil {
+		return err
+	}
 	if err := vm.uptimeManager.Disconnect(nodeID); err != nil {
 		return err
 	}
