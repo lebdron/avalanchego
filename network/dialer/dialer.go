@@ -44,11 +44,11 @@ type Config struct {
 // If [dialerConfig.throttleRps] == 0, outgoing connections aren't rate-limited.
 func NewDialer(network string, dialerConfig Config, log logging.Logger) Dialer {
 	var throttler throttling.DialThrottler
-	if dialerConfig.ThrottleRps <= 0 {
-		throttler = throttling.NewNoDialThrottler()
-	} else {
-		throttler = throttling.NewDialThrottler(int(dialerConfig.ThrottleRps))
-	}
+	// if dialerConfig.ThrottleRps <= 0 {
+	throttler = throttling.NewNoDialThrottler()
+	// } else {
+	// 	throttler = throttling.NewDialThrottler(int(dialerConfig.ThrottleRps))
+	// }
 	log.Debug(
 		"creating dialer",
 		zap.Uint32("throttleRPS", dialerConfig.ThrottleRps),

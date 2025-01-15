@@ -136,14 +136,7 @@ func New(
 	)
 
 	validatorHandler := p2p.NewValidatorHandler(
-		p2p.NewThrottlerHandler(
-			handler,
-			p2p.NewSlidingWindowThrottler(
-				config.PullGossipThrottlingPeriod,
-				config.PullGossipThrottlingLimit,
-			),
-			log,
-		),
+		handler,
 		validators,
 		log,
 	)

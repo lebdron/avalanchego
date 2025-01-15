@@ -206,28 +206,30 @@ func NewNetwork(
 		return nil, errTrackingPrimaryNetwork
 	}
 
-	inboundMsgThrottler, err := throttling.NewInboundMsgThrottler(
-		log,
-		metricsRegisterer,
-		config.Validators,
-		config.ThrottlerConfig.InboundMsgThrottlerConfig,
-		config.ResourceTracker,
-		config.CPUTargeter,
-		config.DiskTargeter,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("initializing inbound message throttler failed with: %w", err)
-	}
+	// inboundMsgThrottler, err := throttling.NewInboundMsgThrottler(
+	// 	log,
+	// 	metricsRegisterer,
+	// 	config.Validators,
+	// 	config.ThrottlerConfig.InboundMsgThrottlerConfig,
+	// 	config.ResourceTracker,
+	// 	config.CPUTargeter,
+	// 	config.DiskTargeter,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("initializing inbound message throttler failed with: %w", err)
+	// }
+	inboundMsgThrottler := throttling.NewNoInboundThrottler()
 
-	outboundMsgThrottler, err := throttling.NewSybilOutboundMsgThrottler(
-		log,
-		metricsRegisterer,
-		config.Validators,
-		config.ThrottlerConfig.OutboundMsgThrottlerConfig,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("initializing outbound message throttler failed with: %w", err)
-	}
+	// outboundMsgThrottler, err := throttling.NewSybilOutboundMsgThrottler(
+	// 	log,
+	// 	metricsRegisterer,
+	// 	config.Validators,
+	// 	config.ThrottlerConfig.OutboundMsgThrottlerConfig,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("initializing outbound message throttler failed with: %w", err)
+	// }
+	outboundMsgThrottler := throttling.NewNoOutboundThrottler()
 
 	peerMetrics, err := peer.NewMetrics(metricsRegisterer)
 	if err != nil {

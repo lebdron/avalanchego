@@ -48,7 +48,6 @@ import (
 	"github.com/ava-labs/avalanchego/network"
 	"github.com/ava-labs/avalanchego/network/dialer"
 	"github.com/ava-labs/avalanchego/network/peer"
-	"github.com/ava-labs/avalanchego/network/throttling"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/networking/benchlist"
 	"github.com/ava-labs/avalanchego/snow/networking/router"
@@ -436,7 +435,7 @@ func (n *Node) initNetworking(reg prometheus.Registerer) error {
 		return err
 	}
 	// Wrap listener so it will only accept a certain number of incoming connections per second
-	listener = throttling.NewThrottledListener(listener, n.Config.NetworkConfig.ThrottlerConfig.MaxInboundConnsPerSec)
+	// listener = throttling.NewThrottledListener(listener, n.Config.NetworkConfig.ThrottlerConfig.MaxInboundConnsPerSec)
 
 	// Record the bound address to enable inclusion in process context file.
 	n.stakingAddress, err = ips.ParseAddrPort(listener.Addr().String())
