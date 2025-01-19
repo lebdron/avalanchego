@@ -191,4 +191,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/ava-labs/coreth => github.com/lebdron/coreth v0.12.9-rc.9.0.20250117012729-bebb22709b3b
+replace github.com/ava-labs/coreth => github.com/lebdron/coreth v0.12.9-rc.9.0.20250119011421-1cabc7facf7e
